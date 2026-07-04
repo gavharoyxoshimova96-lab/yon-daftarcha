@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Netlify root deploy — EXPO_BASE_URL kerak emas
+  EXPO_BASE_URL = ""
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
