@@ -9,7 +9,7 @@ const source = path.join(root, 'assets', 'images', 'logo-source.png');
 const outDir = path.join(root, 'assets', 'images');
 
 const GREEN = '#2E7D32';
-const LIGHT_GREEN = '#E8F5E9';
+const DARK_GREEN = '#1B5E20';
 
 async function resizeIcon(size, output, options = {}) {
   const { padding = 0, background } = options;
@@ -82,7 +82,7 @@ async function main() {
   await resizeIcon(512, path.join(outDir, 'splash-icon.png'), { padding: 64, background: '#ffffff' });
   await resizeIcon(1024, path.join(outDir, 'android-icon-foreground.png'), { padding: 180 });
   await sharp({
-    create: { width: 1024, height: 1024, channels: 3, background: LIGHT_GREEN },
+    create: { width: 1024, height: 1024, channels: 3, background: DARK_GREEN },
   })
     .png()
     .toFile(path.join(outDir, 'android-icon-background.png'));
