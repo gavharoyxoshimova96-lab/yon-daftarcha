@@ -8,14 +8,28 @@ const root = path.join(__dirname, '..');
 const source = path.join(root, 'assets', 'images', 'logo-source.png');
 const outDir = path.join(root, 'assets', 'images');
 
-const GREEN = '#2E7D32';
-const DARK_GREEN = '#1B5E20';
+const BLACK = '#0A0A0A';
+
+async function squareSource(size) {
+  const meta = await sharp(source).metadata();
+  const side = Math.min(meta.width ?? size, meta.height ?? size);
+  return sharp(source)
+    .extract({
+      left: Math.floor(((meta.width ?? side) - side) / 2),
+      top: Math.floor(((meta.height ?? side) - side) / 2),
+      width: side,
+      height: side,
+    })
+    .resize(size, size, { fit: 'cover' });
+}
 
 async function resizeIcon(size, output, options = {}) {
-  const { padding = 0, background } = options;
+  const { padding = 0, background, cover = true } = options;
   const inner = size - padding * 2;
 
-  let img = sharp(source).resize(inner, inner, { fit: 'contain' });
+  let img = cover
+    ? await squareSource(inner)
+    : sharp(source).resize(inner, inner, { fit: 'contain' });
 
   if (background) {
     const canvas = sharp({
@@ -53,9 +67,8 @@ async function resizeIcon(size, output, options = {}) {
 }
 
 async function makeMonochrome(size, output) {
-  const padded = Math.round(size * 0.62);
-  const icon = await sharp(source)
-    .resize(padded, padded, { fit: 'contain' })
+  const padded = Math.round(size * 0.72);
+  const icon = await (await squareSource(padded))
     .greyscale()
     .threshold(128)
     .negate()
@@ -79,10 +92,10 @@ async function main() {
 
   await resizeIcon(1024, path.join(outDir, 'icon.png'));
   await resizeIcon(48, path.join(outDir, 'favicon.png'));
-  await resizeIcon(512, path.join(outDir, 'splash-icon.png'), { padding: 64, background: '#ffffff' });
-  await resizeIcon(1024, path.join(outDir, 'android-icon-foreground.png'), { padding: 180 });
+  await resizeIcon(512, path.join(outDir, 'splash-icon.png'), { padding: 48, background: BLACK });
+  await resizeIcon(1024, path.join(outDir, 'android-icon-foreground.png'), { padding: 120 });
   await sharp({
-    create: { width: 1024, height: 1024, channels: 3, background: DARK_GREEN },
+    create: { width: 1024, height: 1024, channels: 3, background: BLACK },
   })
     .png()
     .toFile(path.join(outDir, 'android-icon-background.png'));
