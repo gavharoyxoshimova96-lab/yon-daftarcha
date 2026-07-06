@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 
 import { useDatabase } from '@/context/DatabaseContext';
+import { useLocale } from '@/context/LocaleContext';
 import { getCategories, getBudgetStatuses, setBudget, deleteBudget, getBudgets } from '@/database';
 import { BudgetStatus, Category } from '@/types';
 import { formatCurrency } from '@/utils/format';
@@ -22,6 +23,7 @@ import { useAppColors } from '@/hooks/useAppColors';
 export default function BudgetScreen() {
   const theme = useTheme();
   const colors = useAppColors();
+  const { t } = useLocale();
   const { refreshKey, refresh } = useDatabase();
   const [month, setMonth] = useState(() => new Date());
   const [categories, setCategories] = useState<Category[]>([]);
@@ -74,6 +76,23 @@ export default function BudgetScreen() {
     }
   };
 
+  const handleClearLimit = (cat: Category) => {
+    const currentLimit = parseFloat((limits[cat.id] ?? '').replace(/[^\d.]/g, '')) || 0;
+    if (currentLimit <= 0) return;
+
+    Alert.alert(t('common.delete'), `"${cat.name}" ${t('budget.clearLimitConfirm')}`, [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          await deleteBudgetByCategory(cat.id);
+          setLimits((prev) => ({ ...prev, [cat.id]: '' }));
+        },
+      },
+    ]);
+  };
+
   const statusMap = Object.fromEntries(statuses.map((s) => [s.categoryId, s]));
 
   return (
@@ -90,8 +109,14 @@ export default function BudgetScreen() {
       </View>
 
       <Text variant="bodyMedium" style={styles.hint}>
-        Har bir chiqim kategoriyasi uchun oylik limit belgilang
+        {t('budget.hint')}
       </Text>
+
+      {categories.length === 0 ? (
+        <Text variant="bodyLarge" style={styles.empty}>
+          {t('budget.noCategories')}
+        </Text>
+      ) : null}
 
       {categories.map((cat) => {
         const status = statusMap[cat.id];
@@ -103,13 +128,24 @@ export default function BudgetScreen() {
         return (
           <Card key={cat.id} style={styles.card} mode="elevated">
             <Card.Content>
-              <Text variant="titleMedium" style={styles.catName}>
-                {cat.name}
-              </Text>
+              <View style={styles.cardHeader}>
+                <Text variant="titleMedium" style={styles.catName}>
+                  {cat.name}
+                </Text>
+                {limit > 0 && (
+                  <IconButton
+                    icon="delete-outline"
+                    size={20}
+                    iconColor={theme.colors.error}
+                    onPress={() => handleClearLimit(cat)}
+                    accessibilityLabel={t('common.delete')}
+                  />
+                )}
+              </View>
               {limit > 0 && (
                 <>
                   <Text variant="bodySmall" style={{ marginBottom: 4 }}>
-                    Sarflangan: {formatCurrency(spent)} / {formatCurrency(limit)}
+                    {t('budget.spent')}: {formatCurrency(spent)} / {formatCurrency(limit)}
                   </Text>
                   <ProgressBar
                     progress={Math.min(progress, 1)}
@@ -119,7 +155,7 @@ export default function BudgetScreen() {
               )}
               <View style={styles.limitRow}>
                 <TextInput
-                  label="Limit (so'm)"
+                  label={t('budget.limitLabel')}
                   value={limits[cat.id] ?? ''}
                   onChangeText={(v) => setLimits((prev) => ({ ...prev, [cat.id]: v }))}
                   keyboardType="numeric"
@@ -128,12 +164,12 @@ export default function BudgetScreen() {
                   dense
                 />
                 <Button mode="contained-tonal" onPress={() => handleSaveLimit(cat.id)} compact>
-                  Saqlash
+                  {t('common.save')}
                 </Button>
               </View>
               {exceeded && (
                 <Text variant="labelSmall" style={{ color: colors.expense, marginTop: 4 }}>
-                  Limit oshdi!
+                  {t('budget.overBudget')}
                 </Text>
               )}
             </Card.Content>
@@ -155,8 +191,14 @@ const styles = StyleSheet.create({
   },
   monthTitle: { fontWeight: '700', flex: 1, textAlign: 'center' },
   hint: { opacity: 0.7, marginBottom: 16 },
+  empty: { textAlign: 'center', padding: 32, opacity: 0.6 },
   card: { marginBottom: 12, borderRadius: 12 },
-  catName: { fontWeight: '600', marginBottom: 8 },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  catName: { fontWeight: '600', marginBottom: 8, flex: 1 },
   limitRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   limitInput: { flex: 1 },
 });

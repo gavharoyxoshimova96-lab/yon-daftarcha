@@ -1,17 +1,20 @@
 import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Menu, SegmentedButtons, TextInput, useTheme } from 'react-native-paper';
+
 import { useFocusEffect, router } from 'expo-router';
 
 import { DatePickerInput } from '@/components/DatePickerInput';
-
 import { TransactionList } from '@/components/TransactionList';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useLocale } from '@/context/LocaleContext';
 import { getCategories, getTransactions } from '@/database';
+import { useTransactionActions } from '@/hooks/useTransactionActions';
 import { Category, Transaction, TransactionType } from '@/types';
 
 export default function SearchScreen() {
   const theme = useTheme();
+  const { t } = useLocale();
   const { refreshKey } = useDatabase();
   const [searchText, setSearchText] = useState('');
   const [type, setType] = useState<TransactionType | 'all'>('all');
@@ -40,6 +43,20 @@ export default function SearchScreen() {
     setResults(data);
     setSearched(true);
   };
+
+  const reloadResults = useCallback(async () => {
+    if (!searched) return;
+    const data = await getTransactions({
+      type: type === 'all' ? undefined : type,
+      categoryId,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      searchText: searchText || undefined,
+    });
+    setResults(data);
+  }, [searched, type, categoryId, startDate, endDate, searchText]);
+
+  const { handleEdit, handleDelete } = useTransactionActions(reloadResults);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
@@ -128,6 +145,8 @@ export default function SearchScreen() {
           transactions={results}
           emptyMessage="Natija topilmadi"
           onPress={(id) => router.push(`/transaction/${id}`)}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
         />
       )}
     </ScrollView>

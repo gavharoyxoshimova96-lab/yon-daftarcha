@@ -51,6 +51,7 @@ export interface TranslationSchema {
     all: string;
   };
   dashboard: {
+    subtitle: string;
     totalBalance: string;
     monthlyIncome: string;
     monthlyExpense: string;
@@ -152,12 +153,16 @@ export interface TranslationSchema {
     progress: string;
     noGoals: string;
     confirmDelete: string;
+    details: string;
   };
   budget: {
     title: string;
     setLimit: string;
     spent: string;
     limit: string;
+    limitLabel: string;
+    hint: string;
+    clearLimitConfirm: string;
     overBudget: string;
     noCategories: string;
     editLimit: string;

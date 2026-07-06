@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Alert, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { TransactionForm } from '@/components/TransactionForm';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useLocale } from '@/context/LocaleContext';
-import { getTransaction, updateTransaction } from '@/database';
+import { deleteTransaction, getTransaction, updateTransaction } from '@/database';
 
 export default function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,6 +24,22 @@ export default function EditTransactionScreen() {
       });
     }
   }, [id]);
+
+  const handleDelete = () => {
+    if (!tx) return;
+    Alert.alert(t('common.delete'), t('more.deleteTransaction'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTransaction(tx.id);
+          refresh();
+          router.back();
+        },
+      },
+    ]);
+  };
 
   if (loading) {
     return (
@@ -55,18 +71,28 @@ export default function EditTransactionScreen() {
   }
 
   return (
-    <TransactionForm
-      type={tx.type}
-      initialAmount={String(tx.amount)}
-      initialCategoryId={tx.category_id}
-      initialNote={tx.note}
-      initialDate={tx.date}
-      submitLabel={t('transaction.save')}
-      onSubmit={async (data) => {
-        await updateTransaction(tx.id, data.amount, data.categoryId, data.note, data.date);
-        refresh();
-        router.back();
-      }}
-    />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <TransactionForm
+        type={tx.type}
+        initialAmount={String(tx.amount)}
+        initialCategoryId={tx.category_id}
+        initialNote={tx.note}
+        initialDate={tx.date}
+        submitLabel={t('transaction.save')}
+        onSubmit={async (data) => {
+          await updateTransaction(tx.id, data.amount, data.categoryId, data.note, data.date);
+          refresh();
+          router.back();
+        }}
+      />
+      <Button
+        mode="outlined"
+        textColor={theme.colors.error}
+        style={{ margin: 16, marginTop: 0, borderRadius: 12 }}
+        onPress={handleDelete}
+      >
+        {t('common.delete')}
+      </Button>
+    </View>
   );
 }

@@ -4,15 +4,19 @@ import {
   Button,
   Dialog,
   FAB,
-  List,
+  IconButton,
   Portal,
   SegmentedButtons,
+  Text,
   TextInput,
   useTheme,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
+import { SurfaceCard } from '@/components/ui/SurfaceCard';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useLocale } from '@/context/LocaleContext';
 import {
   createCategory,
   deleteCategory,
@@ -21,9 +25,11 @@ import {
   updateCategory,
 } from '@/database';
 import { Category, CategoryType } from '@/types';
+import { radii } from '@/constants/design';
 
 export default function CategoriesScreen() {
   const theme = useTheme();
+  const { t } = useLocale();
   const { refreshKey, refresh } = useDatabase();
   const [type, setType] = useState<CategoryType>('expense');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -69,24 +75,30 @@ export default function CategoriesScreen() {
     const count = await getCategoryTransactionCount(cat.id);
     if (count > 0) {
       Alert.alert(
-        'O\'chirib bo\'lmaydi',
-        `"${cat.name}" kategoriyasida ${count} ta operatsiya bor. Avval ularni boshqa kategoriyaga o'tkazing yoki o'chiring.`
+        t('categories.cannotDelete'),
+        `"${cat.name}" ${t('categories.inUse', { count })}`
       );
       return;
     }
-    Alert.alert('O\'chirish', `"${cat.name}" kategoriyasini o'chirmoqchimisiz?`, [
-      { text: 'Bekor', style: 'cancel' },
-      {
-        text: 'O\'chirish',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteCategory(cat.id);
-          refresh();
-          loadData();
+    Alert.alert(
+      t('common.delete'),
+      `"${cat.name}" ${t('categories.confirmDelete')}`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            await deleteCategory(cat.id);
+            refresh();
+            loadData();
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
+
+  const accent = type === 'income' ? theme.colors.primary : theme.colors.error;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -95,26 +107,53 @@ export default function CategoriesScreen() {
           value={type}
           onValueChange={(v) => setType(v as CategoryType)}
           buttons={[
-            { value: 'expense', label: 'Chiqim' },
-            { value: 'income', label: 'Kirim' },
+            { value: 'expense', label: t('categories.expenses') },
+            { value: 'income', label: t('categories.incomes') },
           ]}
           style={styles.segmented}
         />
 
-        {categories.map((cat) => (
-          <List.Item
-            key={cat.id}
-            title={cat.name}
-            right={() => (
-              <View style={styles.actions}>
-                <Button onPress={() => openEdit(cat)}>Tahrirlash</Button>
-                <Button textColor={theme.colors.error} onPress={() => handleDelete(cat)}>
-                  O'chirish
-                </Button>
+        {categories.length === 0 ? (
+          <View style={[styles.empty, { backgroundColor: theme.colors.surfaceVariant, borderRadius: radii.md }]}>
+            <MaterialCommunityIcons
+              name="tag-outline"
+              size={40}
+              color={theme.colors.onSurfaceVariant}
+              style={{ opacity: 0.5, marginBottom: 8 }}
+            />
+            <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+              {t('common.noData')}
+            </Text>
+          </View>
+        ) : (
+          categories.map((cat) => (
+            <SurfaceCard key={cat.id} accentColor={accent}>
+              <View style={styles.row}>
+                <View style={[styles.iconWrap, { backgroundColor: accent + '18' }]}>
+                  <MaterialCommunityIcons name="tag" size={20} color={accent} />
+                </View>
+                <Text variant="titleSmall" style={[styles.catName, { color: theme.colors.onSurface }]}>
+                  {cat.name}
+                </Text>
+                <View style={styles.actions}>
+                  <IconButton
+                    icon="pencil-outline"
+                    size={20}
+                    onPress={() => openEdit(cat)}
+                    accessibilityLabel={t('common.edit')}
+                  />
+                  <IconButton
+                    icon="delete-outline"
+                    size={20}
+                    iconColor={theme.colors.error}
+                    onPress={() => handleDelete(cat)}
+                    accessibilityLabel={t('common.delete')}
+                  />
+                </View>
               </View>
-            )}
-          />
-        ))}
+            </SurfaceCard>
+          ))
+        )}
       </ScrollView>
 
       <FAB
@@ -122,14 +161,15 @@ export default function CategoriesScreen() {
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         color="#fff"
         onPress={openCreate}
+        accessibilityLabel={t('categories.add')}
       />
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>{editId ? 'Tahrirlash' : 'Yangi kategoriya'}</Dialog.Title>
+          <Dialog.Title>{editId ? t('categories.edit') : t('categories.add')}</Dialog.Title>
           <Dialog.Content>
             <TextInput
-              label="Nomi"
+              label={t('categories.name')}
               value={name}
               onChangeText={setName}
               mode="outlined"
@@ -137,8 +177,8 @@ export default function CategoriesScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>Bekor</Button>
-            <Button onPress={handleSave}>Saqlash</Button>
+            <Button onPress={() => setDialogVisible(false)}>{t('common.cancel')}</Button>
+            <Button onPress={handleSave}>{t('common.save')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -151,14 +191,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    padding: 16,
     paddingBottom: 80,
   },
   segmented: {
-    margin: 16,
+    marginBottom: 16,
+  },
+  empty: {
+    padding: 36,
+    alignItems: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 10,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catName: {
+    flex: 1,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    marginRight: -8,
   },
   fab: {
     position: 'absolute',

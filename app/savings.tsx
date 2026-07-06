@@ -5,6 +5,7 @@ import {
   Card,
   Dialog,
   FAB,
+  IconButton,
   Portal,
   ProgressBar,
   Text,
@@ -15,6 +16,7 @@ import { router, useFocusEffect } from 'expo-router';
 
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { useDatabase } from '@/context/DatabaseContext';
+import { useLocale } from '@/context/LocaleContext';
 import {
   createSavingsGoal,
   deleteSavingsGoal,
@@ -27,6 +29,7 @@ import { toDateString } from '@/utils/date';
 
 export default function SavingsScreen() {
   const theme = useTheme();
+  const { t } = useLocale();
   const { refreshKey, refresh } = useDatabase();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -75,10 +78,10 @@ export default function SavingsScreen() {
   };
 
   const handleDelete = (goal: SavingsGoal) => {
-    Alert.alert('O\'chirish', `"${goal.name}" maqsadini o'chirmoqchimisiz?`, [
-      { text: 'Bekor', style: 'cancel' },
+    Alert.alert(t('common.delete'), t('savings.confirmDelete'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'O\'chirish',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           await deleteSavingsGoal(goal.id);
@@ -94,7 +97,7 @@ export default function SavingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {goals.length === 0 ? (
           <Text variant="bodyLarge" style={styles.empty}>
-            Jamg'arma maqsadlari yo'q
+            {t('savings.noGoals')}
           </Text>
         ) : (
           goals.map((goal) => {
@@ -113,11 +116,20 @@ export default function SavingsScreen() {
                     {Math.round(progress * 100)}% bajarildi
                   </Text>
                   <View style={styles.actions}>
-                    <Button onPress={() => router.push(`/savings/${goal.id}`)}>Batafsil</Button>
-                    <Button onPress={() => openEdit(goal)}>Tahrirlash</Button>
-                    <Button textColor={theme.colors.error} onPress={() => handleDelete(goal)}>
-                      O'chirish
-                    </Button>
+                    <Button onPress={() => router.push(`/savings/${goal.id}`)}>{t('savings.details')}</Button>
+                    <IconButton
+                      icon="pencil"
+                      size={20}
+                      onPress={() => openEdit(goal)}
+                      accessibilityLabel={t('common.edit')}
+                    />
+                    <IconButton
+                      icon="delete-outline"
+                      size={20}
+                      iconColor={theme.colors.error}
+                      onPress={() => handleDelete(goal)}
+                      accessibilityLabel={t('common.delete')}
+                    />
                   </View>
                 </Card.Content>
               </Card>
@@ -134,11 +146,11 @@ export default function SavingsScreen() {
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>{editId ? 'Tahrirlash' : 'Yangi maqsad'}</Dialog.Title>
+          <Dialog.Title>{editId ? t('savings.editGoal') : t('savings.addGoal')}</Dialog.Title>
           <Dialog.Content>
-            <TextInput label="Nomi" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+            <TextInput label={t('savings.goalName')} value={name} onChangeText={setName} mode="outlined" style={styles.input} />
             <TextInput
-              label="Maqsad summasi"
+              label={t('savings.targetAmount')}
               value={target}
               onChangeText={setTarget}
               keyboardType="numeric"
@@ -146,15 +158,15 @@ export default function SavingsScreen() {
               style={styles.input}
             />
             <DatePickerInput
-              label="Muddat (ixtiyoriy)"
+              label={t('savings.deadline')}
               value={deadline}
               onChange={setDeadline}
               clearable
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>Bekor</Button>
-            <Button onPress={handleSave}>Saqlash</Button>
+            <Button onPress={() => setDialogVisible(false)}>{t('common.cancel')}</Button>
+            <Button onPress={handleSave}>{t('common.save')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
