@@ -24,8 +24,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     getDatabase().then(async () => {
       setReady(true);
       try {
-        const { scheduleDebtReminders } = await import('@/services/notifications');
-        await scheduleDebtReminders();
+        const { runRecurringPayments } = await import('@/services/recurringPayments');
+        const { syncNotifications } = await import('@/services/notifications');
+        await runRecurringPayments();
+        await syncNotifications();
       } catch {
         // notifications optional until packages installed
       }
@@ -34,8 +36,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
+    import('@/services/recurringPayments')
+      .then((m) => m.runRecurringPayments())
+      .catch(() => {});
     import('@/services/notifications')
-      .then((m) => m.scheduleDebtReminders())
+      .then((m) => m.syncNotifications())
       .catch(() => {});
   }, []);
 

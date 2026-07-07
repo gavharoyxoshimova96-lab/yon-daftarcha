@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SegmentedButtons, Text, useTheme } from 'react-native-paper';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { TransactionList } from '@/components/TransactionList';
 import { MenuTile } from '@/components/ui/MenuTile';
@@ -46,6 +46,22 @@ const TOOL_ITEMS = [
     route: '/budget',
     color: '#6A1B9A',
     soft: '#F3E5F5',
+  },
+  {
+    titleKey: 'screens.recurring',
+    descKey: 'more.recurringDesc',
+    icon: 'repeat' as const,
+    route: '/recurring',
+    color: '#E65100',
+    soft: '#FFF3E0',
+  },
+  {
+    titleKey: 'screens.smsImport',
+    descKey: 'more.smsImportDesc',
+    icon: 'message-text' as const,
+    route: '/sms-import',
+    color: '#00695C',
+    soft: '#E0F2F1',
   },
   {
     titleKey: 'screens.backup',
@@ -126,7 +142,7 @@ export default function MoreScreen() {
             icon={item.icon}
             color={item.color}
             softColor={theme.dark ? item.color + '22' : item.soft}
-            onPress={() => router.push(item.route)}
+            onPress={() => router.push(item.route as Href)}
           />
         ))}
       </View>

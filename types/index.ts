@@ -3,6 +3,22 @@ export type CategoryType = 'income' | 'expense';
 export type DebtType = 'borrowed' | 'lent';
 export type DebtStatus = 'active' | 'paid';
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: number;
+  type: TransactionType;
+  amount: number;
+  category_id: number;
+  note: string;
+  frequency: RecurringFrequency;
+  start_date: string;
+  next_run_date: string;
+  end_date: string | null;
+  is_active: number;
+  category_name?: string;
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -81,13 +97,14 @@ export interface TransactionFilter {
 }
 
 export interface BackupData {
-  version: 1;
+  version: 1 | 2;
   exported_at: string;
   categories: Category[];
   transactions: Omit<Transaction, 'category_name'>[];
   debts: Debt[];
   savings_goals: SavingsGoal[];
   budgets: Budget[];
+  recurring_transactions?: RecurringTransaction[];
   settings: Record<string, string>;
 }
 

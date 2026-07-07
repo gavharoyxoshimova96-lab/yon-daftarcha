@@ -13,10 +13,13 @@ import {
   Budget,
   BudgetStatus,
   BackupData,
+  RecurringTransaction,
+  RecurringFrequency,
 } from '@/types';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES, CHART_COLORS } from '@/constants/defaultCategories';
-import { getMonthRange } from '@/utils/date';
+import { getMonthRange, toDateString } from '@/utils/date';
 import { toMonthKey } from '@/utils/month';
+import { advanceRecurringDate } from '@/utils/recurring';
 
 const STORAGE_KEY = 'yondaftarcha_db';
 
@@ -26,12 +29,14 @@ interface WebStore {
   debts: Debt[];
   savings_goals: SavingsGoal[];
   budgets: Budget[];
+  recurring_transactions: RecurringTransaction[];
   settings: Record<string, string>;
   nextCategoryId: number;
   nextTransactionId: number;
   nextDebtId: number;
   nextSavingsId: number;
   nextBudgetId: number;
+  nextRecurringId: number;
 }
 
 let store: WebStore | null = null;
@@ -56,12 +61,14 @@ function createEmptyStore(): WebStore {
     debts: [],
     savings_goals: [],
     budgets: [],
+    recurring_transactions: [],
     settings: {},
     nextCategoryId: 1,
     nextTransactionId: 1,
     nextDebtId: 1,
     nextSavingsId: 1,
     nextBudgetId: 1,
+    nextRecurringId: 1,
   };
 }
 
@@ -75,12 +82,14 @@ function normalizeStore(raw: Partial<WebStore>): WebStore {
     debts: raw.debts ?? empty.debts,
     savings_goals: raw.savings_goals ?? empty.savings_goals,
     budgets: raw.budgets ?? empty.budgets,
+    recurring_transactions: raw.recurring_transactions ?? empty.recurring_transactions,
     settings: raw.settings ?? empty.settings,
     nextCategoryId: raw.nextCategoryId ?? empty.nextCategoryId,
     nextTransactionId: raw.nextTransactionId ?? empty.nextTransactionId,
     nextDebtId: raw.nextDebtId ?? empty.nextDebtId,
     nextSavingsId: raw.nextSavingsId ?? empty.nextSavingsId,
     nextBudgetId: raw.nextBudgetId ?? empty.nextBudgetId,
+    nextRecurringId: raw.nextRecurringId ?? empty.nextRecurringId,
   };
 }
 
@@ -537,6 +546,116 @@ export async function getBudgetStatuses(month?: string): Promise<BudgetStatus[]>
   });
 }
 
+// --- Recurring transactions ---
+
+export async function getRecurringTransactions(activeOnly = false): Promise<RecurringTransaction[]> {
+  const data = ensureReady();
+  const items = data.recurring_transactions
+    .filter((r) => !activeOnly || r.is_active === 1)
+    .map((r) => ({
+      ...r,
+      category_name: data.categories.find((c) => c.id === r.category_id)?.name,
+    }));
+  return items.sort((a, b) => {
+    if (a.is_active !== b.is_active) return b.is_active - a.is_active;
+    return a.next_run_date.localeCompare(b.next_run_date);
+  });
+}
+
+export async function getRecurringTransaction(id: number): Promise<RecurringTransaction | null> {
+  const data = ensureReady();
+  const item = data.recurring_transactions.find((r) => r.id === id);
+  if (!item) return null;
+  return {
+    ...item,
+    category_name: data.categories.find((c) => c.id === item.category_id)?.name,
+  };
+}
+
+export async function createRecurringTransaction(
+  type: TransactionType,
+  amount: number,
+  categoryId: number,
+  note: string,
+  frequency: RecurringFrequency,
+  startDate: string,
+  endDate: string | null
+): Promise<number> {
+  const data = ensureReady();
+  const id = data.nextRecurringId++;
+  data.recurring_transactions.push({
+    id,
+    type,
+    amount,
+    category_id: categoryId,
+    note,
+    frequency,
+    start_date: startDate,
+    next_run_date: startDate,
+    end_date: endDate,
+    is_active: 1,
+  });
+  persist();
+  return id;
+}
+
+export async function updateRecurringTransaction(
+  id: number,
+  type: TransactionType,
+  amount: number,
+  categoryId: number,
+  note: string,
+  frequency: RecurringFrequency,
+  nextRunDate: string,
+  endDate: string | null,
+  isActive: boolean
+): Promise<void> {
+  const data = ensureReady();
+  const item = data.recurring_transactions.find((r) => r.id === id);
+  if (!item) return;
+  Object.assign(item, {
+    type,
+    amount,
+    category_id: categoryId,
+    note,
+    frequency,
+    next_run_date: nextRunDate,
+    end_date: endDate,
+    is_active: isActive ? 1 : 0,
+  });
+  persist();
+}
+
+export async function deleteRecurringTransaction(id: number): Promise<void> {
+  const data = ensureReady();
+  data.recurring_transactions = data.recurring_transactions.filter((r) => r.id !== id);
+  persist();
+}
+
+export async function processDueRecurringTransactions(): Promise<number> {
+  const data = ensureReady();
+  const today = toDateString();
+  const due = data.recurring_transactions.filter(
+    (r) => r.is_active === 1 && r.next_run_date <= today
+  );
+
+  let processed = 0;
+  for (const item of due) {
+    const note = item.note || '';
+    await createTransaction(item.type, item.amount, item.category_id, note, item.next_run_date);
+
+    const nextDate = advanceRecurringDate(item.next_run_date, item.frequency);
+    item.next_run_date = nextDate;
+    if (item.end_date && nextDate > item.end_date) {
+      item.is_active = 0;
+    }
+    processed += 1;
+  }
+
+  if (processed > 0) persist();
+  return processed;
+}
+
 // --- Settings ---
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -560,7 +679,7 @@ export async function getAllSettings(): Promise<Record<string, string>> {
 export async function exportBackup(): Promise<BackupData> {
   const data = ensureReady();
   return {
-    version: 1,
+    version: 2,
     exported_at: new Date().toISOString(),
     categories: [...data.categories],
     transactions: [...data.transactions],
@@ -572,12 +691,17 @@ export async function exportBackup(): Promise<BackupData> {
       month,
       limit_amount,
     })),
+    recurring_transactions: data.recurring_transactions.map(
+      ({ id, type, amount, category_id, note, frequency, start_date, next_run_date, end_date, is_active }) => ({
+        id, type, amount, category_id, note, frequency, start_date, next_run_date, end_date, is_active,
+      })
+    ),
     settings: { ...data.settings },
   };
 }
 
 export async function importBackup(backup: BackupData): Promise<void> {
-  if (backup.version !== 1) throw new Error('UNSUPPORTED_VERSION');
+  if (backup.version !== 1 && backup.version !== 2) throw new Error('UNSUPPORTED_VERSION');
 
   const nextId = (items: { id: number }[]) =>
     items.length ? Math.max(...items.map((i) => i.id)) + 1 : 1;
@@ -588,12 +712,14 @@ export async function importBackup(backup: BackupData): Promise<void> {
     debts: [...backup.debts],
     savings_goals: [...backup.savings_goals],
     budgets: backup.budgets.map((b) => ({ ...b })),
+    recurring_transactions: (backup.recurring_transactions ?? []).map((r) => ({ ...r })),
     settings: { ...backup.settings },
     nextCategoryId: nextId(backup.categories),
     nextTransactionId: nextId(backup.transactions),
     nextDebtId: nextId(backup.debts),
     nextSavingsId: nextId(backup.savings_goals),
     nextBudgetId: nextId(backup.budgets),
+    nextRecurringId: nextId(backup.recurring_transactions ?? []),
   };
   persist();
 }

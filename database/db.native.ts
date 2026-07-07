@@ -14,10 +14,13 @@ import {
   Budget,
   BudgetStatus,
   BackupData,
+  RecurringTransaction,
+  RecurringFrequency,
 } from '@/types';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES, CHART_COLORS } from '@/constants/defaultCategories';
-import { getMonthRange } from '@/utils/date';
+import { getMonthRange, toDateString } from '@/utils/date';
 import { toMonthKey } from '@/utils/month';
+import { advanceRecurringDate } from '@/utils/recurring';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -77,6 +80,19 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS recurring_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+      amount REAL NOT NULL,
+      category_id INTEGER NOT NULL,
+      note TEXT DEFAULT '',
+      frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+      start_date TEXT NOT NULL,
+      next_run_date TEXT NOT NULL,
+      end_date TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
     );
   `);
 
@@ -537,6 +553,111 @@ export async function getBudgetStatuses(month?: string): Promise<BudgetStatus[]>
   return statuses;
 }
 
+// --- Recurring transactions ---
+
+export async function getRecurringTransactions(activeOnly = false): Promise<RecurringTransaction[]> {
+  const database = await getDatabase();
+  const query = activeOnly
+    ? `SELECT r.*, c.name as category_name
+       FROM recurring_transactions r
+       JOIN categories c ON r.category_id = c.id
+       WHERE r.is_active = 1
+       ORDER BY r.next_run_date`
+    : `SELECT r.*, c.name as category_name
+       FROM recurring_transactions r
+       JOIN categories c ON r.category_id = c.id
+       ORDER BY r.is_active DESC, r.next_run_date`;
+  return database.getAllAsync<RecurringTransaction>(query);
+}
+
+export async function getRecurringTransaction(id: number): Promise<RecurringTransaction | null> {
+  const database = await getDatabase();
+  return (
+    (await database.getFirstAsync<RecurringTransaction>(
+      `SELECT r.*, c.name as category_name
+       FROM recurring_transactions r
+       JOIN categories c ON r.category_id = c.id
+       WHERE r.id = ?`,
+      [id]
+    )) ?? null
+  );
+}
+
+export async function createRecurringTransaction(
+  type: TransactionType,
+  amount: number,
+  categoryId: number,
+  note: string,
+  frequency: RecurringFrequency,
+  startDate: string,
+  endDate: string | null
+): Promise<number> {
+  const database = await getDatabase();
+  const result = await database.runAsync(
+    `INSERT INTO recurring_transactions
+     (type, amount, category_id, note, frequency, start_date, next_run_date, end_date, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [type, amount, categoryId, note, frequency, startDate, startDate, endDate]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateRecurringTransaction(
+  id: number,
+  type: TransactionType,
+  amount: number,
+  categoryId: number,
+  note: string,
+  frequency: RecurringFrequency,
+  nextRunDate: string,
+  endDate: string | null,
+  isActive: boolean
+): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE recurring_transactions
+     SET type = ?, amount = ?, category_id = ?, note = ?, frequency = ?,
+         next_run_date = ?, end_date = ?, is_active = ?
+     WHERE id = ?`,
+    [type, amount, categoryId, note, frequency, nextRunDate, endDate, isActive ? 1 : 0, id]
+  );
+}
+
+export async function deleteRecurringTransaction(id: number): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync('DELETE FROM recurring_transactions WHERE id = ?', [id]);
+}
+
+export async function processDueRecurringTransactions(): Promise<number> {
+  const database = await getDatabase();
+  const today = toDateString();
+  const due = await database.getAllAsync<RecurringTransaction>(
+    `SELECT * FROM recurring_transactions
+     WHERE is_active = 1 AND next_run_date <= ?`,
+    [today]
+  );
+
+  let processed = 0;
+  for (const item of due) {
+    const note = item.note || '';
+    await createTransaction(item.type, item.amount, item.category_id, note, item.next_run_date);
+
+    let nextDate = advanceRecurringDate(item.next_run_date, item.frequency);
+    let isActive = 1;
+    if (item.end_date && nextDate > item.end_date) {
+      isActive = 0;
+    }
+
+    await database.runAsync(
+      'UPDATE recurring_transactions SET next_run_date = ?, is_active = ? WHERE id = ?',
+      [nextDate, isActive, item.id]
+    );
+    processed += 1;
+  }
+
+  return processed;
+}
+
 // --- Settings ---
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -577,16 +698,20 @@ export async function exportBackup(): Promise<BackupData> {
   const budgets = await database.getAllAsync<Budget>(
     'SELECT id, category_id, month, limit_amount FROM budgets ORDER BY id'
   );
+  const recurring_transactions = await database.getAllAsync<RecurringTransaction>(
+    'SELECT id, type, amount, category_id, note, frequency, start_date, next_run_date, end_date, is_active FROM recurring_transactions ORDER BY id'
+  );
   const settings = await getAllSettings();
 
   return {
-    version: 1,
+    version: 2,
     exported_at: new Date().toISOString(),
     categories,
     transactions,
     debts,
     savings_goals,
     budgets,
+    recurring_transactions,
     settings,
   };
 }
@@ -599,11 +724,12 @@ async function updateSequence(database: SQLite.SQLiteDatabase, table: string): P
 }
 
 export async function importBackup(data: BackupData): Promise<void> {
-  if (data.version !== 1) throw new Error('UNSUPPORTED_VERSION');
+  if (data.version !== 1 && data.version !== 2) throw new Error('UNSUPPORTED_VERSION');
 
   const database = await getDatabase();
   await database.execAsync(`
     DELETE FROM transactions;
+    DELETE FROM recurring_transactions;
     DELETE FROM budgets;
     DELETE FROM debts;
     DELETE FROM savings_goals;
@@ -646,11 +772,23 @@ export async function importBackup(data: BackupData): Promise<void> {
       [budget.id, budget.category_id, budget.month, budget.limit_amount]
     );
   }
+  for (const recurring of data.recurring_transactions ?? []) {
+    await database.runAsync(
+      `INSERT INTO recurring_transactions
+       (id, type, amount, category_id, note, frequency, start_date, next_run_date, end_date, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recurring.id, recurring.type, recurring.amount, recurring.category_id, recurring.note,
+        recurring.frequency, recurring.start_date, recurring.next_run_date, recurring.end_date,
+        recurring.is_active,
+      ]
+    );
+  }
   for (const [key, value] of Object.entries(data.settings)) {
     await setSetting(key, value);
   }
 
-  for (const table of ['categories', 'transactions', 'debts', 'savings_goals', 'budgets']) {
+  for (const table of ['categories', 'transactions', 'debts', 'savings_goals', 'budgets', 'recurring_transactions']) {
     await updateSequence(database, table);
   }
 }

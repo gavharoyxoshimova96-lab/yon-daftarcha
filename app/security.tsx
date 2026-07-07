@@ -3,7 +3,9 @@ import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { Button, List, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { useFocusEffect } from 'expo-router';
 
+import { useAuth } from '@/context/AuthContext';
 import { useSecurity } from '@/context/SecurityContext';
+import { useLocale } from '@/context/LocaleContext';
 import {
   hasPin,
   setPin,
@@ -16,11 +18,13 @@ import {
 import {
   enableNotifications,
   disableNotifications,
-  scheduleDebtReminders,
+  syncNotifications,
 } from '@/services/notifications';
 
 export default function SecurityScreen() {
   const theme = useTheme();
+  const { t } = useLocale();
+  const { user, logout, changeUserPassword } = useAuth();
   const { refreshSecurity } = useSecurity();
   const [pinExists, setPinExists] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -28,6 +32,9 @@ export default function SecurityScreen() {
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
   const loadSettings = useCallback(async () => {
@@ -45,11 +52,11 @@ export default function SecurityScreen() {
 
   const handleSetPin = async () => {
     if (!/^\d{4}$/.test(newPin)) {
-      Alert.alert('Xatolik', 'PIN 4 ta raqamdan iborat bo\'lishi kerak');
+      Alert.alert(t('common.error'), t('security.pinMustBe4'));
       return;
     }
     if (newPin !== confirmPin) {
-      Alert.alert('Xatolik', 'PIN mos kelmadi');
+      Alert.alert(t('common.error'), t('security.pinMismatch'));
       return;
     }
     setSaving(true);
@@ -59,19 +66,19 @@ export default function SecurityScreen() {
       setConfirmPin('');
       await refreshSecurity();
       await loadSettings();
-      Alert.alert('Tayyor', 'PIN o\'rnatildi');
+      Alert.alert(t('common.ready'), t('security.pinSetSuccess'));
     } catch {
-      Alert.alert('Xatolik', 'PIN o\'rnatib bo\'lmadi');
+      Alert.alert(t('common.error'), t('security.pinMustBe4'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleRemovePin = () => {
-    Alert.alert('PIN o\'chirish', 'PIN o\'chirilsinmi?', [
-      { text: 'Bekor', style: 'cancel' },
+    Alert.alert(t('security.removePin'), t('security.pinRemoveConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'O\'chirish',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           await removePin();
@@ -82,9 +89,43 @@ export default function SecurityScreen() {
     ]);
   };
 
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      Alert.alert(t('common.error'), t('auth.errors.invalidPassword'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t('common.error'), t('auth.errors.passwordMismatch'));
+      return;
+    }
+    setSaving(true);
+    try {
+      await changeUserPassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert(t('common.ready'), t('auth.passwordChanged'));
+    } catch {
+      Alert.alert(t('common.error'), t('auth.errors.invalidCredentials'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(t('auth.logout'), t('auth.logoutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('auth.logout'),
+        style: 'destructive',
+        onPress: () => logout(),
+      },
+    ]);
+  };
+
   const toggleBiometric = async (value: boolean) => {
     if (value && !pinExists) {
-      Alert.alert('Avval PIN o\'rnating');
+      Alert.alert(t('security.setPin'));
       return;
     }
     await setBiometricEnabled(value);
@@ -95,14 +136,14 @@ export default function SecurityScreen() {
     if (value) {
       const ok = await enableNotifications();
       if (!ok) {
-        Alert.alert('Ruxsat kerak', 'Bildirishnomalar uchun ruxsat bering');
+        Alert.alert(t('sms.permissionRequired'), t('security.notificationsDesc'));
         return;
       }
     } else {
       await disableNotifications();
     }
     setNotificationsOn(value);
-    if (value) await scheduleDebtReminders();
+    if (value) await syncNotifications();
   };
 
   return (
@@ -111,22 +152,67 @@ export default function SecurityScreen() {
       contentContainerStyle={styles.content}
     >
       <List.Section>
-        <List.Subheader>PIN qulfi</List.Subheader>
+        <List.Subheader>{t('auth.account')}</List.Subheader>
+        <List.Item
+          title={user?.isGuest ? t('auth.guestName') : user?.name ?? '—'}
+          description={user?.isGuest ? t('auth.guestDesc') : user?.email ?? ''}
+          left={(props) => <List.Icon {...props} icon="account-circle" />}
+        />
+        <Button mode="outlined" onPress={handleLogout} style={styles.btn} icon="logout">
+          {t('auth.logout')}
+        </Button>
+      </List.Section>
+
+      {!user?.isGuest ? (
+        <List.Section>
+          <List.Subheader>{t('auth.changePassword')}</List.Subheader>
+          <TextInput
+            label={t('auth.currentPassword')}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            mode="outlined"
+            style={styles.input}
+          />
+          <TextInput
+            label={t('auth.newPassword')}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            mode="outlined"
+            style={styles.input}
+          />
+          <TextInput
+            label={t('auth.confirmPassword')}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            mode="outlined"
+            style={styles.input}
+          />
+          <Button mode="contained" onPress={handleChangePassword} loading={saving} style={styles.btn}>
+            {t('auth.changePasswordBtn')}
+          </Button>
+        </List.Section>
+      ) : null}
+
+      <List.Section>
+        <List.Subheader>{t('security.pinSet')}</List.Subheader>
         {pinExists ? (
           <>
             <List.Item
-              title="PIN o'rnatilgan"
-              description="Ilova fon rejimida qulflanadi"
+              title={t('security.pinSet')}
+              description={t('security.pinLockDesc')}
               left={(props) => <List.Icon {...props} icon="lock" />}
             />
             <Button mode="outlined" onPress={handleRemovePin} style={styles.btn} textColor={theme.colors.error}>
-              PIN o'chirish
+              {t('security.removePin')}
             </Button>
           </>
         ) : (
           <>
             <TextInput
-              label="Yangi PIN (4 raqam)"
+              label={t('security.newPin')}
               value={newPin}
               onChangeText={(v) => setNewPin(v.replace(/\D/g, '').slice(0, 4))}
               keyboardType="number-pad"
@@ -136,7 +222,7 @@ export default function SecurityScreen() {
               maxLength={4}
             />
             <TextInput
-              label="PIN tasdiqlash"
+              label={t('security.confirmPin')}
               value={confirmPin}
               onChangeText={(v) => setConfirmPin(v.replace(/\D/g, '').slice(0, 4))}
               keyboardType="number-pad"
@@ -146,7 +232,7 @@ export default function SecurityScreen() {
               maxLength={4}
             />
             <Button mode="contained" onPress={handleSetPin} loading={saving} style={styles.btn}>
-              PIN o'rnatish
+              {t('security.setPin')}
             </Button>
           </>
         )}
@@ -154,10 +240,10 @@ export default function SecurityScreen() {
 
       {biometricAvailable && (
         <List.Section>
-          <List.Subheader>Biometrika</List.Subheader>
+          <List.Subheader>{t('security.biometric')}</List.Subheader>
           <List.Item
-            title="Barmoq izi / Face ID"
-            description="PIN o'rniga biometrika bilan ochish"
+            title={t('security.biometric')}
+            description={t('security.biometricDesc')}
             left={(props) => <List.Icon {...props} icon="fingerprint" />}
             right={() => (
               <Switch value={biometricOn} onValueChange={toggleBiometric} disabled={!pinExists} />
@@ -167,11 +253,21 @@ export default function SecurityScreen() {
       )}
 
       <List.Section>
-        <List.Subheader>Bildirishnomalar</List.Subheader>
+        <List.Subheader>{t('security.notifications')}</List.Subheader>
         <List.Item
-          title="Qarz eslatmalari"
-          description="Muddatdan 1 kun oldin eslatma"
+          title={t('security.debtNotifications')}
+          description={t('security.debtNotificationsDesc')}
           left={(props) => <List.Icon {...props} icon="bell" />}
+        />
+        <List.Item
+          title={t('security.budgetNotifications')}
+          description={t('security.budgetNotificationsDesc')}
+          left={(props) => <List.Icon {...props} icon="chart-line" />}
+        />
+        <List.Item
+          title={t('security.enableNotifications')}
+          description={t('security.enableNotificationsDesc')}
+          left={(props) => <List.Icon {...props} icon="bell-ring" />}
           right={() => <Switch value={notificationsOn} onValueChange={toggleNotifications} />}
         />
       </List.Section>
