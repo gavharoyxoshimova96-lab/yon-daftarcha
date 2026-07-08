@@ -10,7 +10,6 @@ import { DatabaseProvider } from '@/context/DatabaseContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { SecurityProvider } from '@/context/SecurityContext';
-import { SmsImportProvider } from '@/context/SmsImportContext';
 import { lightTheme, darkTheme } from '@/constants/theme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -48,7 +47,6 @@ function AppStack() {
       <Stack.Screen name="savings/[id]" options={{ title: t('screens.goal') }} />
       <Stack.Screen name="budget" options={{ title: t('screens.budget') }} />
       <Stack.Screen name="recurring" options={{ title: t('screens.recurring') }} />
-      <Stack.Screen name="sms-import" options={{ title: t('screens.smsImport') }} />
       <Stack.Screen name="backup" options={{ title: t('screens.backup') }} />
       <Stack.Screen name="security" options={{ title: t('screens.security') }} />
       <Stack.Screen name="ai" options={{ title: t('screens.ai') }} />
@@ -84,9 +82,7 @@ export default function RootLayout() {
         <LocaleProvider>
           <AuthProvider>
             <SecurityProvider>
-              <SmsImportProvider>
-                <AppStack />
-              </SmsImportProvider>
+              <AppStack />
             </SecurityProvider>
           </AuthProvider>
         </LocaleProvider>

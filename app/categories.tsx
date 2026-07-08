@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   Button,
   Dialog,
@@ -26,6 +26,7 @@ import {
 } from '@/database';
 import { Category, CategoryType } from '@/types';
 import { radii } from '@/constants/design';
+import { confirmDialog, showAlert } from '@/utils/dialog';
 
 export default function CategoriesScreen() {
   const theme = useTheme();
@@ -74,28 +75,24 @@ export default function CategoriesScreen() {
   const handleDelete = async (cat: Category) => {
     const count = await getCategoryTransactionCount(cat.id);
     if (count > 0) {
-      Alert.alert(
-        t('categories.cannotDelete'),
-        `"${cat.name}" ${t('categories.inUse', { count })}`
-      );
+      showAlert(t('categories.cannotDelete'), `"${cat.name}" ${t('categories.inUse', { count })}`);
       return;
     }
-    Alert.alert(
+
+    const ok = await confirmDialog(
       t('common.delete'),
       `"${cat.name}" ${t('categories.confirmDelete')}`,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            await deleteCategory(cat.id);
-            refresh();
-            loadData();
-          },
-        },
-      ]
+      {
+        confirmText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        destructive: true,
+      }
     );
+    if (!ok) return;
+
+    await deleteCategory(cat.id);
+    refresh();
+    loadData();
   };
 
   const accent = type === 'income' ? theme.colors.primary : theme.colors.error;

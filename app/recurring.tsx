@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   Button,
   Card,
@@ -31,6 +31,7 @@ import { Category, RecurringFrequency, RecurringTransaction, TransactionType } f
 import { formatCurrency } from '@/utils/format';
 import { toDateString } from '@/utils/date';
 import { RECURRING_FREQUENCIES } from '@/utils/recurring';
+import { confirmDialog } from '@/utils/dialog';
 import { useAppColors } from '@/hooks/useAppColors';
 
 export default function RecurringScreen() {
@@ -132,19 +133,17 @@ export default function RecurringScreen() {
     loadData();
   };
 
-  const handleDelete = (item: RecurringTransaction) => {
-    Alert.alert(t('common.delete'), t('recurring.confirmDelete'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteRecurringTransaction(item.id);
-          refresh();
-          loadData();
-        },
-      },
-    ]);
+  const handleDelete = async (item: RecurringTransaction) => {
+    const ok = await confirmDialog(t('common.delete'), t('recurring.confirmDelete'), {
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await deleteRecurringTransaction(item.id);
+    refresh();
+    loadData();
   };
 
   const frequencyLabel = (value: RecurringFrequency) =>

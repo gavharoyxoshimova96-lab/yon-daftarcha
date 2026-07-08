@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   Button,
   Card,
@@ -26,6 +26,7 @@ import {
 import { SavingsGoal } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { toDateString } from '@/utils/date';
+import { confirmDialog } from '@/utils/dialog';
 
 export default function SavingsScreen() {
   const theme = useTheme();
@@ -77,19 +78,17 @@ export default function SavingsScreen() {
     loadData();
   };
 
-  const handleDelete = (goal: SavingsGoal) => {
-    Alert.alert(t('common.delete'), t('savings.confirmDelete'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteSavingsGoal(goal.id);
-          refresh();
-          loadData();
-        },
-      },
-    ]);
+  const handleDelete = async (goal: SavingsGoal) => {
+    const ok = await confirmDialog(t('common.delete'), t('savings.confirmDelete'), {
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await deleteSavingsGoal(goal.id);
+    refresh();
+    loadData();
   };
 
   return (

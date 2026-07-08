@@ -136,7 +136,7 @@ export default function SecurityScreen() {
     if (value) {
       const ok = await enableNotifications();
       if (!ok) {
-        Alert.alert(t('sms.permissionRequired'), t('security.notificationsDesc'));
+        Alert.alert(t('security.notifications'), t('security.enableNotificationsDesc'));
         return;
       }
     } else {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -7,6 +7,7 @@ import { TransactionForm } from '@/components/TransactionForm';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useLocale } from '@/context/LocaleContext';
 import { deleteTransaction, getTransaction, updateTransaction } from '@/database';
+import { confirmDialog } from '@/utils/dialog';
 
 export default function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,20 +26,18 @@ export default function EditTransactionScreen() {
     }
   }, [id]);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!tx) return;
-    Alert.alert(t('common.delete'), t('more.deleteTransaction'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteTransaction(tx.id);
-          refresh();
-          router.back();
-        },
-      },
-    ]);
+    const ok = await confirmDialog(t('common.delete'), t('more.deleteTransaction'), {
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await deleteTransaction(tx.id);
+    refresh();
+    router.back();
   };
 
   if (loading) {

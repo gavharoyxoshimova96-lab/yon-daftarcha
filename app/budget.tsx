@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   Button,
   Card,
@@ -19,6 +19,7 @@ import { formatCurrency } from '@/utils/format';
 import { addMonths, formatMonthYear } from '@/utils/date';
 import { toMonthKey } from '@/utils/month';
 import { useAppColors } from '@/hooks/useAppColors';
+import { confirmDialog } from '@/utils/dialog';
 
 export default function BudgetScreen() {
   const theme = useTheme();
@@ -76,21 +77,23 @@ export default function BudgetScreen() {
     }
   };
 
-  const handleClearLimit = (cat: Category) => {
+  const handleClearLimit = async (cat: Category) => {
     const currentLimit = parseFloat((limits[cat.id] ?? '').replace(/[^\d.]/g, '')) || 0;
     if (currentLimit <= 0) return;
 
-    Alert.alert(t('common.delete'), `"${cat.name}" ${t('budget.clearLimitConfirm')}`, [
-      { text: t('common.cancel'), style: 'cancel' },
+    const ok = await confirmDialog(
+      t('common.delete'),
+      `"${cat.name}" ${t('budget.clearLimitConfirm')}`,
       {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteBudgetByCategory(cat.id);
-          setLimits((prev) => ({ ...prev, [cat.id]: '' }));
-        },
-      },
-    ]);
+        confirmText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        destructive: true,
+      }
+    );
+    if (!ok) return;
+
+    await deleteBudgetByCategory(cat.id);
+    setLimits((prev) => ({ ...prev, [cat.id]: '' }));
   };
 
   const statusMap = Object.fromEntries(statuses.map((s) => [s.categoryId, s]));

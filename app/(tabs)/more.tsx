@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { router, useFocusEffect, type Href } from 'expo-router';
 
@@ -10,6 +10,7 @@ import { SurfaceCard } from '@/components/ui/SurfaceCard';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useLocale } from '@/context/LocaleContext';
 import { deleteTransaction, getTransactions } from '@/database';
+import { confirmDialog } from '@/utils/dialog';
 import { AppLocale } from '@/i18n';
 import { Transaction, TransactionType } from '@/types';
 import { palette } from '@/constants/design';
@@ -56,14 +57,6 @@ const TOOL_ITEMS = [
     soft: '#FFF3E0',
   },
   {
-    titleKey: 'screens.smsImport',
-    descKey: 'more.smsImportDesc',
-    icon: 'message-text' as const,
-    route: '/sms-import',
-    color: '#00695C',
-    soft: '#E0F2F1',
-  },
-  {
     titleKey: 'screens.backup',
     descKey: 'more.backupDesc',
     icon: 'cloud-upload' as const,
@@ -107,18 +100,16 @@ export default function MoreScreen() {
     }, [loadData, refreshKey])
   );
 
-  const handleDelete = (id: number) => {
-    Alert.alert(t('common.delete'), t('more.deleteTransaction'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteTransaction(id);
-          refresh();
-        },
-      },
-    ]);
+  const handleDelete = async (id: number) => {
+    const ok = await confirmDialog(t('common.delete'), t('more.deleteTransaction'), {
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await deleteTransaction(id);
+    refresh();
   };
 
   const languageButtons = (['uz', 'ru', 'en'] as AppLocale[]).map((code) => ({

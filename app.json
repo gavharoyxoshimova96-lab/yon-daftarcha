@@ -19,11 +19,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "READ_SMS",
-        "RECEIVE_SMS"
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
@@ -53,8 +49,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#0A0A0A"
         }
-      ],
-      "expo-sms-listener"
+      ]
     ],
     "experiments": {
       "typedRoutes": true

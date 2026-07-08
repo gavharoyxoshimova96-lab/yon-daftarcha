@@ -18,6 +18,7 @@ import { formatCurrency } from '@/utils/format';
 import { formatDisplayDate } from '@/utils/date';
 import { useAppColors } from '@/hooks/useAppColors';
 import { useLocale } from '@/context/LocaleContext';
+import { confirmDialog } from '@/utils/dialog';
 
 export default function DebtsScreen() {
   const theme = useTheme();
@@ -61,18 +62,17 @@ export default function DebtsScreen() {
     );
   };
 
-  const handleDelete = (debt: Debt) => {
-    Alert.alert(t('common.delete'), t('common.confirmDelete'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteDebt(debt.id);
-          refresh();
-        },
-      },
-    ]);
+  const handleDelete = async (debt: Debt) => {
+    const ok = await confirmDialog(t('common.delete'), t('common.confirmDelete'), {
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await deleteDebt(debt.id);
+    refresh();
+    loadData();
   };
 
   return (
