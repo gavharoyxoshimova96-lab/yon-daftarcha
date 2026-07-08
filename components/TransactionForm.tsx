@@ -24,6 +24,7 @@ interface TransactionFormProps {
     date: string;
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onRequestDelete?: () => void;
   deleteLabel?: string;
 }
 
@@ -36,6 +37,7 @@ export function TransactionForm({
   submitLabel,
   onSubmit,
   onDelete,
+  onRequestDelete,
   deleteLabel,
 }: TransactionFormProps) {
   const theme = useTheme();
@@ -78,13 +80,14 @@ export function TransactionForm({
     }
   };
 
-  const handleDelete = async () => {
-    if (!onDelete) return;
-    setDeleting(true);
-    try {
-      await onDelete();
-    } finally {
-      setDeleting(false);
+  const handleDeletePress = () => {
+    if (onRequestDelete) {
+      onRequestDelete();
+      return;
+    }
+    if (onDelete) {
+      setDeleting(true);
+      onDelete().finally(() => setDeleting(false));
     }
   };
 
@@ -133,12 +136,12 @@ export function TransactionForm({
         {submitLabel}
       </Button>
 
-      {onDelete ? (
+      {(onRequestDelete || onDelete) ? (
         <Button
           mode="outlined"
           textColor={theme.colors.error}
           style={styles.deleteBtn}
-          onPress={handleDelete}
+          onPress={handleDeletePress}
           loading={deleting}
           disabled={loading || deleting}
         >

@@ -2,19 +2,20 @@ import { router } from 'expo-router';
 
 import { useDatabase } from '@/context/DatabaseContext';
 import { useLocale } from '@/context/LocaleContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import { deleteTransaction } from '@/database';
-import { confirmDialog } from '@/utils/dialog';
 
 export function useTransactionActions(onDeleted?: () => void) {
   const { refresh } = useDatabase();
   const { t } = useLocale();
+  const confirm = useConfirm();
 
   const handleEdit = (id: number) => {
     router.push(`/transaction/${id}`);
   };
 
   const handleDelete = async (id: number) => {
-    const ok = await confirmDialog(t('common.delete'), t('more.deleteTransaction'), {
+    const ok = await confirm(t('common.delete'), t('more.deleteTransaction'), {
       confirmText: t('common.delete'),
       cancelText: t('common.cancel'),
       destructive: true,

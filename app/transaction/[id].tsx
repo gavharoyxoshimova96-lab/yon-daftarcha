@@ -1,44 +1,52 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Button, Text, useTheme } from 'react-native-paper';
+import { Button, Dialog, Portal, Text, useTheme } from 'react-native-paper';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { TransactionForm } from '@/components/TransactionForm';
 import { useDatabase } from '@/context/DatabaseContext';
 import { useLocale } from '@/context/LocaleContext';
 import { deleteTransaction, getTransaction, updateTransaction } from '@/database';
-import { confirmDialog } from '@/utils/dialog';
 
 export default function EditTransactionScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const txId = Number(rawId);
+
   const theme = useTheme();
   const { refresh } = useDatabase();
   const { t } = useLocale();
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [tx, setTx] = useState<Awaited<ReturnType<typeof getTransaction>>>(null);
 
   useEffect(() => {
-    if (id) {
-      getTransaction(Number(id)).then((data) => {
-        setTx(data);
-        setLoading(false);
-      });
+    if (!Number.isFinite(txId)) {
+      setLoading(false);
+      return;
     }
-  }, [id]);
-
-  const handleDelete = async () => {
-    if (!tx) return;
-
-    const ok = await confirmDialog(t('common.delete'), t('more.deleteTransaction'), {
-      confirmText: t('common.delete'),
-      cancelText: t('common.cancel'),
-      destructive: true,
+    getTransaction(txId).then((data) => {
+      setTx(data);
+      setLoading(false);
     });
-    if (!ok) return;
+  }, [txId]);
 
-    await deleteTransaction(tx.id);
-    refresh();
-    router.back();
+  const performDelete = async () => {
+    if (!tx) return;
+    setDeleting(true);
+    try {
+      await deleteTransaction(tx.id);
+      setDeleteDialogVisible(false);
+      refresh();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (loading) {
@@ -80,13 +88,34 @@ export default function EditTransactionScreen() {
         initialDate={tx.date}
         submitLabel={t('transaction.save')}
         deleteLabel={t('common.delete')}
-        onDelete={handleDelete}
+        onRequestDelete={() => setDeleteDialogVisible(true)}
         onSubmit={async (data) => {
           await updateTransaction(tx.id, data.amount, data.categoryId, data.note, data.date);
           refresh();
           router.back();
         }}
       />
+
+      <Portal>
+        <Dialog
+          visible={deleteDialogVisible}
+          onDismiss={() => !deleting && setDeleteDialogVisible(false)}
+          dismissable={!deleting}
+        >
+          <Dialog.Title>{t('common.delete')}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{t('more.deleteTransaction')}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDeleteDialogVisible(false)} disabled={deleting}>
+              {t('common.cancel')}
+            </Button>
+            <Button textColor={theme.colors.error} onPress={performDelete} loading={deleting}>
+              {t('common.delete')}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
