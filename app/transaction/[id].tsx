@@ -28,6 +28,7 @@ export default function EditTransactionScreen() {
 
   const handleDelete = async () => {
     if (!tx) return;
+
     const ok = await confirmDialog(t('common.delete'), t('more.deleteTransaction'), {
       confirmText: t('common.delete'),
       cancelText: t('common.cancel'),
@@ -78,20 +79,14 @@ export default function EditTransactionScreen() {
         initialNote={tx.note}
         initialDate={tx.date}
         submitLabel={t('transaction.save')}
+        deleteLabel={t('common.delete')}
+        onDelete={handleDelete}
         onSubmit={async (data) => {
           await updateTransaction(tx.id, data.amount, data.categoryId, data.note, data.date);
           refresh();
           router.back();
         }}
       />
-      <Button
-        mode="outlined"
-        textColor={theme.colors.error}
-        style={{ margin: 16, marginTop: 0, borderRadius: 12 }}
-        onPress={handleDelete}
-      >
-        {t('common.delete')}
-      </Button>
     </View>
   );
 }

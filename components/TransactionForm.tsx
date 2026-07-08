@@ -23,6 +23,8 @@ interface TransactionFormProps {
     note: string;
     date: string;
   }) => Promise<void>;
+  onDelete?: () => Promise<void>;
+  deleteLabel?: string;
 }
 
 export function TransactionForm({
@@ -33,6 +35,8 @@ export function TransactionForm({
   initialDate,
   submitLabel,
   onSubmit,
+  onDelete,
+  deleteLabel,
 }: TransactionFormProps) {
   const theme = useTheme();
   const colors = useAppColors();
@@ -43,6 +47,7 @@ export function TransactionForm({
   const [categoryId, setCategoryId] = useState<number | undefined>(initialCategoryId);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -73,6 +78,16 @@ export function TransactionForm({
     }
   };
 
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <TextInput
@@ -82,7 +97,7 @@ export function TransactionForm({
         keyboardType="numeric"
         mode="outlined"
         style={styles.input}
-        left={<TextInput.Icon icon="currency-usd" />}
+        left={<TextInput.Icon icon="cash" />}
       />
 
       <DatePickerInput label={t('common.date')} value={date} onChange={setDate} style={styles.input} />
@@ -117,6 +132,19 @@ export function TransactionForm({
       >
         {submitLabel}
       </Button>
+
+      {onDelete ? (
+        <Button
+          mode="outlined"
+          textColor={theme.colors.error}
+          style={styles.deleteBtn}
+          onPress={handleDelete}
+          loading={deleting}
+          disabled={loading || deleting}
+        >
+          {deleteLabel ?? t('common.delete')}
+        </Button>
+      ) : null}
     </ScrollView>
   );
 }
@@ -133,5 +161,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 12,
     paddingVertical: 4,
+  },
+  deleteBtn: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderColor: '#C62828',
   },
 });

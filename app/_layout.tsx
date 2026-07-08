@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { DatabaseProvider } from '@/context/DatabaseContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { ConfirmProvider } from '@/context/ConfirmContext';
 import { SecurityProvider } from '@/context/SecurityContext';
 import { lightTheme, darkTheme } from '@/constants/theme';
 
@@ -78,15 +79,17 @@ export default function RootLayout() {
 
   return (
     <PaperProvider theme={theme}>
-      <DatabaseProvider>
-        <LocaleProvider>
-          <AuthProvider>
-            <SecurityProvider>
-              <AppStack />
-            </SecurityProvider>
-          </AuthProvider>
-        </LocaleProvider>
-      </DatabaseProvider>
+      <ConfirmProvider>
+        <DatabaseProvider>
+          <LocaleProvider>
+            <AuthProvider>
+              <SecurityProvider>
+                <AppStack />
+              </SecurityProvider>
+            </AuthProvider>
+          </LocaleProvider>
+        </DatabaseProvider>
+      </ConfirmProvider>
     </PaperProvider>
   );
 }
